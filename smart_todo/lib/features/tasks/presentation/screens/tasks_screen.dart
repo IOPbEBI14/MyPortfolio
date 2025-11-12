@@ -6,6 +6,7 @@ import 'package:smart_todo/core/providers/auth_providers.dart';
 import '../../../../domain/entities/task.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/simple_task_controller.dart'; // Используем простой контроллер
+import '../widgets/edit_task_form.dart'; // Добавляем импорт
 
 class TasksScreen extends ConsumerWidget {
   const TasksScreen({super.key});
@@ -138,6 +139,9 @@ class TasksScreen extends ConsumerWidget {
         onLongPress: () {
           _showDeleteDialog(context, ref, task);
         },
+        onTap: () {
+          _showEditTaskDialog(context, ref, task); // Добавляем обработчик тапа
+        },
       ),
     );
   }
@@ -190,6 +194,21 @@ class TasksScreen extends ConsumerWidget {
     } else {
       return '${date.day}/${date.month}/${date.year}';
     }
+  }
+
+  void _showEditTaskDialog(BuildContext context, WidgetRef ref, Task task) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Task'),
+        content: EditTaskForm(
+          task: task,
+          onSave: () {
+            Navigator.of(context).pop();
+          },
+        ),
+      ),
+    );
   }
 
   void _showDeleteDialog(BuildContext context, WidgetRef ref, Task task) {
@@ -257,6 +276,7 @@ class TasksScreen extends ConsumerWidget {
   }
 }
 
+// AddTaskForm остается без изменений...
 class AddTaskForm extends ConsumerStatefulWidget {
   final VoidCallback onAddTask;
 
@@ -371,8 +391,8 @@ class _AddTaskFormState extends ConsumerState<AddTaskForm> {
           ? null
           : _descriptionController.text.trim(),
       priority: _selectedPriority,
-      deadline: null, // Можно добавить позже
-      tags: [], // Можно добавить позже
+      deadline: null,
+      tags: [],
       isCompleted: false,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),

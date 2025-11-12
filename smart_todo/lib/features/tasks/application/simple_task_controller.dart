@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/task.dart';
 
-// Для Riverpod 3.0 используем NotifierProvider вместо StateNotifierProvider
 final simpleTaskControllerProvider = NotifierProvider<SimpleTaskController, List<Task>>(() {
   return SimpleTaskController();
 });
@@ -80,5 +79,14 @@ class SimpleTaskController extends Notifier<List<Task>> {
       }
       return task;
     }).toList();
+  }
+
+  // Новый метод для получения задачи по ID
+  Task? getTaskById(String taskId) {
+    try {
+      return state.firstWhere((task) => task.id == taskId);
+    } catch (e) {
+      return null;
+    }
   }
 }
