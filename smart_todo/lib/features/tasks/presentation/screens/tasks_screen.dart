@@ -7,27 +7,56 @@ import '../../../../domain/entities/task.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/simple_task_controller.dart'; // Используем простой контроллер
 import '../widgets/edit_task_form.dart'; // Добавляем импорт
+import '../widgets/task_filter_chip.dart'; // Добавляем импорт
+import '../../application/simple_filter.dart';
 
 class TasksScreen extends ConsumerWidget {
   const TasksScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tasks = ref.watch(simpleTaskControllerProvider);
+    final allTasks = ref.watch(simpleTaskControllerProvider);
+    final currentFilter = ref.watch(taskFilterProvider); // Из simple_filter.dart
+
+    // Фильтруем задачи с помощью функции из simple_filter.dart
+    final tasks = filterTasks(allTasks, currentFilter);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Tasks'),
         actions: [
+          if (currentFilter == TaskFilter.completed)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              onPressed: () {
+                _showClearCompletedDialog(context, ref);
+              },
+              tooltip: 'Clear completed tasks',
+            ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
               _showLogoutDialog(context, ref);
             },
+            tooltip: 'Logout',
           ),
         ],
       ),
-      body: _buildBody(tasks, ref, context),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TaskFilterChip(),
+          ),
+          Container(
+            height: 1,
+            color: Colors.grey[300],
+          ),
+          Expanded(
+            child: _buildBody(tasks, ref, context, currentFilter, allTasks),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           _showAddTaskDialog(context, ref);
@@ -37,26 +66,10 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildBody(List<Task> tasks, WidgetRef ref, BuildContext context) {
+  // Остальные методы остаются без изменений...
+  Widget _buildBody(List<Task> tasks, WidgetRef ref, BuildContext context, TaskFilter currentFilter, List<Task> allTasks) {
     if (tasks.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.task_alt, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text(
-              'No tasks yet',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Tap + to add your first task',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
-      );
+      return _buildEmptyState(currentFilter, allTasks);
     }
 
     return ListView.builder(
@@ -68,6 +81,62 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
+  Widget _buildEmptyState(TaskFilter currentFilter, List<Task> allTasks) {
+    String message;
+    String subtitle;
+
+    if (allTasks.isEmpty) {
+      message = 'No tasks yet';
+      subtitle = 'Tap + to add your first task';
+    } else {
+      switch (currentFilter) {
+        case TaskFilter.active:
+          message = 'No active tasks';
+          subtitle = 'All tasks are completed! 🎉';
+          break;
+        case TaskFilter.completed:
+          message = 'No completed tasks';
+          subtitle = 'Time to get things done! 💪';
+          break;
+        case TaskFilter.all:
+          message = 'No tasks';
+          subtitle = 'Something went wrong';
+          break;
+      }
+    }
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.task_alt,
+            size: 64,
+            color: Colors.grey[400],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(
+              fontSize: 18,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: Colors.grey[500],
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ... остальные методы без изменений
   Widget _buildTaskTile(Task task, WidgetRef ref, BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -84,6 +153,7 @@ class TasksScreen extends ConsumerWidget {
               ? TextStyle(
             decoration: TextDecoration.lineThrough,
             color: Colors.grey,
+            fontStyle: FontStyle.italic,
           )
               : TextStyle(
             fontWeight: FontWeight.w500,
@@ -99,8 +169,9 @@ class TasksScreen extends ConsumerWidget {
                 child: Text(
                   task.description!,
                   style: TextStyle(
-                    color: Colors.grey[700],
+                    color: task.isCompleted ? Colors.grey : Colors.grey[700],
                     fontSize: 14,
+                    fontStyle: task.isCompleted ? FontStyle.italic : FontStyle.normal,
                   ),
                 ),
               ),
@@ -110,28 +181,15 @@ class TasksScreen extends ConsumerWidget {
                 children: task.tags.map((tag) => Chip(
                   label: Text(
                     tag,
-                    style: const TextStyle(fontSize: 10),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: task.isCompleted ? Colors.grey : null,
+                    ),
                   ),
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
+                  backgroundColor: task.isCompleted ? Colors.grey[200] : null,
                 )).toList(),
-              ),
-            if (task.deadline != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: [
-                    Icon(Icons.access_time, size: 12, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Due: ${_formatDate(task.deadline!)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
               ),
           ],
         ),
@@ -140,7 +198,7 @@ class TasksScreen extends ConsumerWidget {
           _showDeleteDialog(context, ref, task);
         },
         onTap: () {
-          _showEditTaskDialog(context, ref, task); // Добавляем обработчик тапа
+          _showEditTaskDialog(context, ref, task);
         },
       ),
     );
@@ -181,19 +239,41 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = date.difference(now);
+  void _showClearCompletedDialog(BuildContext context, WidgetRef ref) {
+    final completedTasks = ref.read(simpleTaskControllerProvider)
+        .where((task) => task.isCompleted)
+        .toList();
 
-    if (difference.inDays == 0) {
-      return 'Today';
-    } else if (difference.inDays == 1) {
-      return 'Tomorrow';
-    } else if (difference.inDays < 7) {
-      return 'In ${difference.inDays} days';
-    } else {
-      return '${date.day}/${date.month}/${date.year}';
-    }
+    if (completedTasks.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear Completed Tasks'),
+        content: Text('Are you sure you want to delete ${completedTasks.length} completed task${completedTasks.length > 1 ? 's' : ''}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              for (final task in completedTasks) {
+                ref.read(simpleTaskControllerProvider.notifier).deleteTask(task.id);
+              }
+              Navigator.of(context).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Cleared ${completedTasks.length} completed task${completedTasks.length > 1 ? 's' : ''}'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showEditTaskDialog(BuildContext context, WidgetRef ref, Task task) {
@@ -276,7 +356,7 @@ class TasksScreen extends ConsumerWidget {
   }
 }
 
-// AddTaskForm остается без изменений...
+// AddTaskForm остается без изменений
 class AddTaskForm extends ConsumerStatefulWidget {
   final VoidCallback onAddTask;
 
