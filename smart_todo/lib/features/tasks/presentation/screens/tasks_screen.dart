@@ -9,22 +9,80 @@ import '../../application/simple_task_controller.dart'; // Используем 
 import '../widgets/edit_task_form.dart'; // Добавляем импорт
 import '../widgets/task_filter_chip.dart'; // Добавляем импорт
 import '../../application/simple_filter.dart';
+import '../../application/search_sort_controller.dart'; // Новый импорт
+import '../widgets/edit_task_form.dart';
+import '../widgets/task_filter_chip.dart';
+import '../widgets/search_bar.dart'; // Новый импорт
 
 class TasksScreen extends ConsumerWidget {
   const TasksScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final allTasks = ref.watch(simpleTaskControllerProvider);
-    final currentFilter = ref.watch(taskFilterProvider); // Из simple_filter.dart
-
-    // Фильтруем задачи с помощью функции из simple_filter.dart
-    final tasks = filterTasks(allTasks, currentFilter);
+    final tasks = ref.watch(processedTasksProvider);
+    final currentFilter = ref.watch(taskFilterProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
+    final taskCount = ref.watch(simpleTaskControllerProvider).length;
+    final sortConfig = ref.watch(taskSortProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Tasks'),
         actions: [
+          // Кнопка переключения направления сортировки
+          if (sortConfig.sort != TaskSort.createdAt || sortConfig.isReversed)
+            IconButton(
+              icon: Icon(
+                sortConfig.isReversed ? Icons.arrow_upward : Icons.arrow_downward,
+              ),
+              onPressed: () {
+                ref.read(taskSortProvider.notifier).toggleDirection();
+              },
+              tooltip: sortConfig.isReversed ? 'Sort ascending' : 'Sort descending',
+            ),
+          // Кнопка сортировки в AppBar
+          PopupMenuButton<TaskSort>(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Sort tasks',
+            onSelected: (sort) {
+              ref.read(taskSortProvider.notifier).setSort(sort);
+            },
+            itemBuilder: (context) {
+              return TaskSort.values.map((sort) {
+                final isSelected = sortConfig.sort == sort;
+                return PopupMenuItem<TaskSort>(
+                  value: sort,
+                  child: Row(
+                    children: [
+                      Icon(
+                        sort.icon,
+                        color: isSelected ? Colors.blue : Colors.grey[600],
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          sort.label,
+                          style: TextStyle(
+                            color: isSelected ? Colors.blue : null,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                      if (isSelected) ...[
+                        const SizedBox(width: 8),
+                        Icon(
+                          sortConfig.isReversed ? Icons.arrow_upward : Icons.arrow_downward,
+                          size: 16,
+                          color: Colors.blue,
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }).toList();
+            },
+          ),
+          // Показываем иконку очистки выполненных задач
           if (currentFilter == TaskFilter.completed)
             IconButton(
               icon: const Icon(Icons.delete_sweep),
@@ -32,6 +90,16 @@ class TasksScreen extends ConsumerWidget {
                 _showClearCompletedDialog(context, ref);
               },
               tooltip: 'Clear completed tasks',
+            ),
+          // Иконка сброса поиска и сортировки
+          if (searchQuery.isNotEmpty || sortConfig.sort != TaskSort.createdAt || sortConfig.isReversed)
+            IconButton(
+              icon: const Icon(Icons.clear_all),
+              onPressed: () {
+                ref.read(searchQueryProvider.notifier).clear();
+                ref.read(taskSortProvider.notifier).setSort(TaskSort.createdAt);
+              },
+              tooltip: 'Clear search and sorting',
             ),
           IconButton(
             icon: const Icon(Icons.logout),
@@ -44,16 +112,93 @@ class TasksScreen extends ConsumerWidget {
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TaskFilterChip(),
-          ),
+          // ФИКСИРОВАННАЯ СЕКЦИЯ ПОИСКА И ФИЛЬТРОВ
           Container(
-            height: 1,
-            color: Colors.grey[300],
+            color: Colors.white,
+            child: Column(
+              children: [
+                // Поисковая строка
+                const TaskSearchBar(),
+
+                // Фильтры
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: TaskFilterChip(),
+                ),
+
+                // Информационная строка
+                if (searchQuery.isNotEmpty || sortConfig.sort != TaskSort.createdAt)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Row(
+                      children: [
+                        if (searchQuery.isNotEmpty)
+                          Text(
+                            'Found ${tasks.length} task${tasks.length != 1 ? 's' : ''}',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 14,
+                            ),
+                          ),
+                        const Spacer(),
+                        Text(
+                          'Total: $taskCount',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Текущая сортировка
+                        if (sortConfig.sort != TaskSort.createdAt)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  sortConfig.sort.icon,
+                                  size: 14,
+                                  color: Colors.blue[700],
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  sortConfig.displayLabel,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.blue[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  sortConfig.isReversed ? Icons.arrow_upward : Icons.arrow_downward,
+                                  size: 12,
+                                  color: Colors.blue[700],
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
+                // Разделитель
+                Container(
+                  height: 1,
+                  color: Colors.grey[300],
+                ),
+              ],
+            ),
           ),
+
+          // ПРОКРУЧИВАЕМЫЙ СПИСОК ЗАДАЧ
           Expanded(
-            child: _buildBody(tasks, ref, context, currentFilter, allTasks),
+            child: _buildBody(tasks, ref, context, currentFilter, searchQuery),
           ),
         ],
       ),
@@ -66,13 +211,16 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
-  // Остальные методы остаются без изменений...
-  Widget _buildBody(List<Task> tasks, WidgetRef ref, BuildContext context, TaskFilter currentFilter, List<Task> allTasks) {
+  // Удаляем старый метод _getSortIcon, так как теперь иконки в enum
+
+  // Остальные методы без изменений...
+  Widget _buildBody(List<Task> tasks, WidgetRef ref, BuildContext context, TaskFilter currentFilter, String searchQuery) {
     if (tasks.isEmpty) {
-      return _buildEmptyState(currentFilter, allTasks);
+      return _buildEmptyState(currentFilter, searchQuery);
     }
 
     return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 80), // Отступ для FAB
       itemCount: tasks.length,
       itemBuilder: (context, index) {
         final task = tasks[index];
@@ -81,13 +229,13 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(TaskFilter currentFilter, List<Task> allTasks) {
+  Widget _buildEmptyState(TaskFilter currentFilter, String searchQuery) {
     String message;
     String subtitle;
 
-    if (allTasks.isEmpty) {
-      message = 'No tasks yet';
-      subtitle = 'Tap + to add your first task';
+    if (searchQuery.isNotEmpty) {
+      message = 'No tasks found';
+      subtitle = 'Try different search terms';
     } else {
       switch (currentFilter) {
         case TaskFilter.active:
@@ -99,8 +247,8 @@ class TasksScreen extends ConsumerWidget {
           subtitle = 'Time to get things done! 💪';
           break;
         case TaskFilter.all:
-          message = 'No tasks';
-          subtitle = 'Something went wrong';
+          message = 'No tasks yet';
+          subtitle = 'Tap + to add your first task';
           break;
       }
     }
@@ -110,7 +258,7 @@ class TasksScreen extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.task_alt,
+            Icons.search_off,
             size: 64,
             color: Colors.grey[400],
           ),
@@ -136,7 +284,7 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
-  // ... остальные методы без изменений
+  // Остальные методы остаются без изменений...
   Widget _buildTaskTile(Task task, WidgetRef ref, BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -191,6 +339,28 @@ class TasksScreen extends ConsumerWidget {
                   backgroundColor: task.isCompleted ? Colors.grey[200] : null,
                 )).toList(),
               ),
+            if (task.deadline != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                        Icons.access_time,
+                        size: 12,
+                        color: task.isCompleted ? Colors.grey : Colors.grey[600]
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Due: ${_formatDate(task.deadline!)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: task.isCompleted ? Colors.grey : Colors.grey[600],
+                        fontStyle: task.isCompleted ? FontStyle.italic : FontStyle.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
         trailing: _buildPriorityIndicator(task.priority),
@@ -204,6 +374,7 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
+  // ... остальные методы без изменений
   Widget _buildPriorityIndicator(TaskPriority priority) {
     final (color, label) = switch (priority) {
       TaskPriority.low => (Colors.green, 'Low'),
@@ -237,6 +408,21 @@ class TasksScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = date.difference(now);
+
+    if (difference.inDays == 0) {
+      return 'Today';
+    } else if (difference.inDays == 1) {
+      return 'Tomorrow';
+    } else if (difference.inDays < 7) {
+      return 'In ${difference.inDays} days';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 
   void _showClearCompletedDialog(BuildContext context, WidgetRef ref) {
