@@ -20,8 +20,11 @@ class EditTaskForm extends ConsumerStatefulWidget {
 class _EditTaskFormState extends ConsumerState<EditTaskForm> {
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
+  final _tagController = TextEditingController();
   late TaskPriority _selectedPriority;
   late bool _isCompleted;
+  DateTime? _selectedDeadline;
+  late List<String> _tags;
 
   @override
   void initState() {
@@ -30,12 +33,15 @@ class _EditTaskFormState extends ConsumerState<EditTaskForm> {
     _descriptionController = TextEditingController(text: widget.task.description ?? '');
     _selectedPriority = widget.task.priority;
     _isCompleted = widget.task.isCompleted;
+    _selectedDeadline = widget.task.deadline;
+    _tags = List<String>.from(widget.task.tags);
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
@@ -43,9 +49,10 @@ class _EditTaskFormState extends ConsumerState<EditTaskForm> {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.maxFinite,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           TextField(
             controller: _titleController,
             decoration: const InputDecoration(
@@ -89,6 +96,89 @@ class _EditTaskFormState extends ConsumerState<EditTaskForm> {
             ),
           ),
           const SizedBox(height: 16),
+          // Deadline picker
+          InkWell(
+            onTap: () async {
+              final DateTime? picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDeadline ?? DateTime.now(),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) {
+                setState(() {
+                  _selectedDeadline = picked;
+                });
+              }
+            },
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: 'Deadline (optional)',
+                border: const OutlineInputBorder(),
+                suffixIcon: _selectedDeadline != null
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          setState(() {
+                            _selectedDeadline = null;
+                          });
+                        },
+                      )
+                    : const Icon(Icons.calendar_today),
+              ),
+              child: Text(
+                _selectedDeadline != null
+                    ? '${_selectedDeadline!.day}/${_selectedDeadline!.month}/${_selectedDeadline!.year}'
+                    : 'No deadline',
+                style: TextStyle(
+                  color: _selectedDeadline != null ? null : Colors.grey,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Tags input
+          TextField(
+            controller: _tagController,
+            decoration: const InputDecoration(
+              labelText: 'Tags (optional)',
+              border: OutlineInputBorder(),
+              hintText: 'Enter tag and press Enter',
+              suffixIcon: Icon(Icons.local_offer),
+            ),
+            onSubmitted: (value) {
+              if (value.trim().isNotEmpty && !_tags.contains(value.trim())) {
+                setState(() {
+                  _tags.add(value.trim());
+                  _tagController.clear(); // Очищаем поле после добавления
+                });
+              }
+            },
+          ),
+          if (_tags.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Wrap(
+                spacing: 8,
+                children: _tags.map((tag) => InputChip(
+                  label: Text(tag),
+                  deleteIcon: const Icon(Icons.close, size: 18),
+                  onPressed: () {
+                    // При клике на тег - подставляем его текст для редактирования
+                    setState(() {
+                      _tagController.text = tag;
+                      _tags.remove(tag);
+                    });
+                  },
+                  onDeleted: () {
+                    setState(() {
+                      _tags.remove(tag);
+                    });
+                  },
+                )).toList(),
+              ),
+            ),
+          const SizedBox(height: 16),
           CheckboxListTile(
             title: const Text('Completed'),
             value: _isCompleted,
@@ -120,6 +210,7 @@ class _EditTaskFormState extends ConsumerState<EditTaskForm> {
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -143,6 +234,8 @@ class _EditTaskFormState extends ConsumerState<EditTaskForm> {
           : _descriptionController.text.trim(),
       priority: _selectedPriority,
       isCompleted: _isCompleted,
+      deadline: _selectedDeadline,
+      tags: _tags,
       updatedAt: DateTime.now(),
     );
 

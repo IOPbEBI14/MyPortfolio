@@ -7,6 +7,8 @@ import 'package:smart_todo/data/models/task_model.dart';
 import 'package:smart_todo/core/providers/repository_providers.dart';
 import 'package:smart_todo/core/providers/auth_providers.dart';
 import 'package:smart_todo/core/providers/connectivity_sync_provider.dart';
+import 'package:smart_todo/core/providers/theme_provider.dart';
+import 'package:smart_todo/core/theme/app_theme.dart';
 import 'package:smart_todo/features/auth/presentation/screens/login_screen.dart';
 import 'package:smart_todo/features/auth/presentation/screens/register_screen.dart';
 import 'package:smart_todo/features/tasks/presentation/screens/tasks_screen.dart';
@@ -60,16 +62,17 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
+    final themeMode = ref.watch(themeProvider);
     
     // Инициализируем connectivity sync для автоматической синхронизации
     ref.watch(connectivitySyncProvider);
 
     return MaterialApp(
       title: 'Smart Todo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       home: authState.when(
         data: (user) {
           if (user != null) {

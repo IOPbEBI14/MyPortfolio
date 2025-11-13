@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Правильные импорты
 import 'package:smart_todo/core/providers/auth_providers.dart';
+import 'package:smart_todo/core/providers/theme_provider.dart';
 import '../../../../domain/entities/task.dart';
 import '../../../auth/application/auth_controller.dart';
 import '../../application/task_controller_simple.dart'; // Новый импорт
@@ -136,6 +137,30 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               },
               tooltip: 'Clear search and sorting',
             ),
+          // Кнопка фильтрации по тегам
+          IconButton(
+            icon: Badge(
+              isLabelVisible: ref.watch(selectedTagsProvider).isNotEmpty,
+              label: Text(ref.watch(selectedTagsProvider).length.toString()),
+              child: const Icon(Icons.filter_list),
+            ),
+            onPressed: () {
+              _showTagFilterDialog(context, ref);
+            },
+            tooltip: 'Filter by tags',
+          ),
+          // Кнопка переключения темы
+          IconButton(
+            icon: Icon(
+              ref.watch(themeProvider) == ThemeMode.dark
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
+            ),
+            onPressed: () {
+              ref.read(themeProvider.notifier).toggleTheme();
+            },
+            tooltip: 'Toggle theme',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
@@ -149,7 +174,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         children: [
           // ФИКСИРОВАННАЯ СЕКЦИЯ ПОИСКА И ФИЛЬТРОВ
           Container(
-            color: Colors.white,
+            color: Theme.of(context).scaffoldBackgroundColor,
             child: Column(
               children: [
                 // Поисковая строка
@@ -189,7 +214,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.blue[50],
+                              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Row(
@@ -198,14 +223,14 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                 Icon(
                                   sortConfig.sort.icon,
                                   size: 14,
-                                  color: Colors.blue[700],
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   sortConfig.displayLabel,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.blue[700],
+                                    color: Theme.of(context).colorScheme.primary,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -213,7 +238,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                 Icon(
                                   sortConfig.isReversed ? Icons.arrow_upward : Icons.arrow_downward,
                                   size: 12,
-                                  color: Colors.blue[700],
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               ],
                             ),
@@ -223,9 +248,10 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   ),
 
                 // Разделитель
-                Container(
+                Divider(
                   height: 1,
-                  color: Colors.grey[300],
+                  thickness: 1,
+                  color: Theme.of(context).dividerColor,
                 ),
               ],
             ),
@@ -355,6 +381,34 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                   ),
                 ),
               ),
+            if (task.deadline != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: 14,
+                      color: _isDeadlineClose(task.deadline!) 
+                          ? Colors.red 
+                          : (task.isCompleted ? Colors.grey : Colors.blue),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${task.deadline!.day}/${task.deadline!.month}/${task.deadline!.year}',
+                      style: TextStyle(
+                        color: _isDeadlineClose(task.deadline!) 
+                            ? Colors.red 
+                            : (task.isCompleted ? Colors.grey : Colors.grey[700]),
+                        fontSize: 13,
+                        fontWeight: _isDeadlineClose(task.deadline!) 
+                            ? FontWeight.bold 
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (task.tags.isNotEmpty)
               Wrap(
                 spacing: 4,
@@ -383,6 +437,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       ),
     );
   }
+  // Проверяем, близок ли дедлайн (меньше 2 дней)
+  bool _isDeadlineClose(DateTime deadline) {
+    final now = DateTime.now();
+    final difference = deadline.difference(now);
+    return difference.inDays < 2 && difference.inDays >= 0;
+  }
+
   Widget _buildPriorityIndicator(TaskPriority priority) {
     final (color, label) = switch (priority) {
       TaskPriority.low => (Colors.green, 'Low'),
@@ -548,6 +609,49 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       ),
     );
   }
+
+  void _showTagFilterDialog(BuildContext context, WidgetRef ref) {
+    final allTags = ref.read(allTagsProvider);
+    final selectedTags = ref.watch(selectedTagsProvider);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Filter by Tags'),
+        content: allTags.isEmpty
+            ? const Text('No tags available')
+            : SizedBox(
+                width: double.maxFinite,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: allTags.map((tag) {
+                    final isSelected = selectedTags.contains(tag);
+                    return FilterChip(
+                      label: Text(tag),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        ref.read(selectedTagsProvider.notifier).toggleTag(tag);
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ref.read(selectedTagsProvider.notifier).clearTags();
+            },
+            child: const Text('Clear All'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // AddTaskForm остается без изменений
@@ -563,13 +667,17 @@ class AddTaskForm extends ConsumerStatefulWidget {
 class _AddTaskFormState extends ConsumerState<AddTaskForm> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _tagController = TextEditingController();
   TaskPriority _selectedPriority = TaskPriority.medium;
   bool _isSubmitting = false; // Флаг для предотвращения двойного нажатия
+  DateTime? _selectedDeadline;
+  List<String> _tags = [];
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
@@ -577,17 +685,18 @@ class _AddTaskFormState extends ConsumerState<AddTaskForm> {
   Widget build(BuildContext context) {
     return SizedBox(
       width: double.maxFinite,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: 'Task Title *',
-              border: OutlineInputBorder(),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _titleController,
+              decoration: const InputDecoration(
+                labelText: 'Task Title *',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
             ),
-            autofocus: true,
-          ),
           const SizedBox(height: 16),
           TextField(
             controller: _descriptionController,
@@ -622,6 +731,80 @@ class _AddTaskFormState extends ConsumerState<AddTaskForm> {
               border: OutlineInputBorder(),
             ),
           ),
+          const SizedBox(height: 16),
+          // Deadline picker
+          InkWell(
+            onTap: () async {
+              final DateTime? picked = await showDatePicker(
+                context: context,
+                initialDate: _selectedDeadline ?? DateTime.now(),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (picked != null) {
+                setState(() {
+                  _selectedDeadline = picked;
+                });
+              }
+            },
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Deadline (optional)',
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.calendar_today),
+              ),
+              child: Text(
+                _selectedDeadline != null
+                    ? '${_selectedDeadline!.day}/${_selectedDeadline!.month}/${_selectedDeadline!.year}'
+                    : 'No deadline',
+                style: TextStyle(
+                  color: _selectedDeadline != null ? null : Colors.grey,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Tags input
+          TextField(
+            controller: _tagController,
+            decoration: const InputDecoration(
+              labelText: 'Tags (optional)',
+              border: OutlineInputBorder(),
+              hintText: 'Enter tag and press Enter',
+              suffixIcon: Icon(Icons.local_offer),
+            ),
+            onSubmitted: (value) {
+              if (value.trim().isNotEmpty && !_tags.contains(value.trim())) {
+                setState(() {
+                  _tags.add(value.trim());
+                  _tagController.clear(); // Очищаем поле после добавления
+                });
+              }
+            },
+          ),
+          if (_tags.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Wrap(
+                spacing: 8,
+                children: _tags.map((tag) => InputChip(
+                  label: Text(tag),
+                  deleteIcon: const Icon(Icons.close, size: 18),
+                  onPressed: () {
+                    // При клике на тег - подставляем его текст для редактирования
+                    setState(() {
+                      _tagController.text = tag;
+                      _tags.remove(tag);
+                    });
+                  },
+                  onDeleted: () {
+                    setState(() {
+                      _tags.remove(tag);
+                    });
+                  },
+                )).toList(),
+              ),
+            ),
           const SizedBox(height: 24),
           Row(
             children: [
@@ -652,6 +835,7 @@ class _AddTaskFormState extends ConsumerState<AddTaskForm> {
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -679,6 +863,8 @@ class _AddTaskFormState extends ConsumerState<AddTaskForm> {
             ? null
             : _descriptionController.text.trim(),
         priority: _selectedPriority,
+        deadline: _selectedDeadline,
+        tags: _tags,
       );
 
       if (mounted) {
