@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:smart_todo/data/models/task_model.dart';
 import 'package:smart_todo/core/providers/repository_providers.dart';
 import 'package:smart_todo/core/providers/auth_providers.dart';
+import 'package:smart_todo/core/providers/connectivity_sync_provider.dart';
 import 'package:smart_todo/features/auth/presentation/screens/login_screen.dart';
 import 'package:smart_todo/features/auth/presentation/screens/register_screen.dart';
 import 'package:smart_todo/features/tasks/presentation/screens/tasks_screen.dart';
@@ -59,6 +60,9 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
+    
+    // Инициализируем connectivity sync для автоматической синхронизации
+    ref.watch(connectivitySyncProvider);
 
     return MaterialApp(
       title: 'Smart Todo',

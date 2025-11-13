@@ -1,16 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/entities/task.dart';
-import 'simple_task_controller.dart';
 import 'search_sort_controller.dart'; // Добавляем импорт
+import 'task_controller_simple.dart'; // Используем упрощенный контроллер
+import '../domain/task_types.dart'; // Добавляем импорт типов
 
-// Типы фильтров
-enum TaskFilter {
-  all,
-  active,
-  completed,
-}
-
-// В Riverpod 3.0.3 используем NotifierProvider для состояния фильтра
+// Провайдер для состояния фильтрации
 final taskFilterProvider = NotifierProvider<TaskFilterNotifier, TaskFilter>(() {
   return TaskFilterNotifier();
 });
@@ -19,10 +13,6 @@ class TaskFilterNotifier extends Notifier<TaskFilter> {
   @override
   TaskFilter build() {
     return TaskFilter.all;
-  }
-
-  void setFilter(TaskFilter filter) {
-    state = filter;
   }
 }
 
@@ -40,10 +30,10 @@ List<Task> filterTasks(List<Task> tasks, TaskFilter filter) {
 
 // Комбинированный провайдер для фильтрации, поиска и сортировки
 final processedTasksProvider = Provider<List<Task>>((ref) {
-  final allTasks = ref.watch(simpleTaskControllerProvider);
+  final allTasks = ref.watch(taskControllerProvider);
   final filter = ref.watch(taskFilterProvider);
   final searchQuery = ref.watch(searchQueryProvider);
-  final sort = ref.watch(taskSortProvider);
+  final sortConfig = ref.watch(taskSortProvider);
 
   // 1. Фильтрация
   var tasks = filterTasks(allTasks, filter);
@@ -52,7 +42,7 @@ final processedTasksProvider = Provider<List<Task>>((ref) {
   tasks = searchTasks(tasks, searchQuery);
 
   // 3. Сортировка
-  tasks = sortTasks(tasks, sort);
+  tasks = sortTasks(tasks, sortConfig);
 
   return tasks;
 });

@@ -1,7 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/repositories/task_repository.dart';
+
+final firebaseTaskRepositoryProvider = Provider<FirebaseTaskRepository>((ref) {
+  return FirebaseTaskRepository(
+    FirebaseFirestore.instance,
+    FirebaseAuth.instance,
+  );
+});
 
 class FirebaseTaskRepository implements TaskRepository {
   final FirebaseFirestore _firestore;
@@ -9,42 +17,10 @@ class FirebaseTaskRepository implements TaskRepository {
 
   FirebaseTaskRepository(this._firestore, this._auth);
 
-  CollectionReference<Task> get _tasksCollection =>
-      _firestore.collection('tasks').withConverter<Task>(
-            fromFirestore: (snapshot, _) {
-              final data = snapshot.data()!;
-              return Task(
-                id: snapshot.id,
-                title: data['title'] as String,
-                description: data['description'] as String?,
-                priority: TaskPriority.values.firstWhere(
-                  (e) => e.name == data['priority'],
-                  orElse: () => TaskPriority.medium,
-                ),
-                deadline: data['deadline'] != null
-                    ? DateTime.fromMillisecondsSinceEpoch(data['deadline'] as int)
-                    : null,
-                tags: (data['tags'] as List<dynamic>).cast<String>(),
-                isCompleted: data['isCompleted'] as bool,
-                createdAt: DateTime.fromMillisecondsSinceEpoch(data['createdAt'] as int),
-                updatedAt: DateTime.fromMillisecondsSinceEpoch(data['updatedAt'] as int),
-                userId: data['userId'] as String,
-              );
-            },
-            toFirestore: (task, _) {
-              return {
-                'title': task.title,
-                'description': task.description,
-                'priority': task.priority.name,
-                'deadline': task.deadline?.millisecondsSinceEpoch,
-                'tags': task.tags,
-                'isCompleted': task.isCompleted,
-                'createdAt': task.createdAt.millisecondsSinceEpoch,
-                'updatedAt': task.updatedAt.millisecondsSinceEpoch,
-                'userId': task.userId,
-              };
-            },
-          );
+  CollectionReference<Map<String, dynamic>> get _tasksCollection =>
+      _firestore.collection('tasks');
+
+  String? get _currentUserId => _auth.currentUser?.uid;
 
   @override
   Stream<List<Task>> getTasks(String userId) {
@@ -52,31 +28,30 @@ class FirebaseTaskRepository implements TaskRepository {
         .where('userId', isEqualTo: userId)
         .orderBy('updatedAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+        .map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return Task.fromFirestore(doc.id, doc.data());
+      }).toList();
+    });
   }
 
   @override
   Future<Task?> getTaskById(String taskId) async {
     final doc = await _tasksCollection.doc(taskId).get();
-    return doc.data();
+    if (doc.exists) {
+      return Task.fromFirestore(doc.id, doc.data()!);
+    }
+    return null;
   }
 
   @override
   Future<void> createTask(Task task) async {
-    await _tasksCollection.doc(task.id).set(task);
+    await _tasksCollection.doc(task.id).set(task.toFirestore());
   }
 
   @override
   Future<void> updateTask(Task task) async {
-    await _tasksCollection.doc(task.id).update({
-      'title': task.title,
-      'description': task.description,
-      'priority': task.priority.name,
-      'deadline': task.deadline?.millisecondsSinceEpoch,
-      'tags': task.tags,
-      'isCompleted': task.isCompleted,
-      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-    });
+    await _tasksCollection.doc(task.id).update(task.toFirestore());
   }
 
   @override
@@ -104,7 +79,9 @@ class FirebaseTaskRepository implements TaskRepository {
     return query
         .orderBy('updatedAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
+        .map((snapshot) => snapshot.docs
+        .map((doc) => Task.fromFirestore(doc.id, doc.data()))
+        .toList());
   }
 
   @override

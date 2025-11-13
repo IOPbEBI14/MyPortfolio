@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/task.dart'; // Добавляем импорт
-import '../../application/simple_task_controller.dart'; // Добавляем импорт
+import '../../application/task_controller_simple.dart'; // Добавляем импорт
 import '../../application/simple_filter.dart';
+import '../../domain/task_types.dart'; // Импортируем типы
 
 class TaskFilterChip extends ConsumerWidget {
   const TaskFilterChip({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentFilter = ref.watch(taskFilterProvider); // Из simple_filter.dart
-    final tasks = ref.watch(simpleTaskControllerProvider);
+    final currentFilter = ref.watch(taskFilterProvider);
+    final tasks = ref.watch(taskControllerProvider);
 
     // Подсчет задач по статусам
     final activeCount = tasks.where((task) => !task.isCompleted).length;
@@ -66,7 +67,7 @@ class TaskFilterChip extends ConsumerWidget {
       ),
       selected: isSelected,
       onSelected: (selected) {
-        ref.read(taskFilterProvider.notifier).setFilter(filter);
+        ref.read(taskFilterProvider.notifier).state = filter;
       },
       backgroundColor: Theme.of(context).colorScheme.surface,
       selectedColor: Theme.of(context).colorScheme.primary,

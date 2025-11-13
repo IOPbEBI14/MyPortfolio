@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smart_todo/core/providers/auth_providers.dart';
 import '../../../../domain/entities/task.dart';
 import '../../../auth/application/auth_controller.dart';
-import '../../application/simple_task_controller.dart'; // Используем простой контроллер
+import '../../application/task_controller_simple.dart'; // Новый импорт
 import '../widgets/edit_task_form.dart'; // Добавляем импорт
 import '../widgets/task_filter_chip.dart'; // Добавляем импорт
 import '../../application/simple_filter.dart';
@@ -13,16 +13,22 @@ import '../../application/search_sort_controller.dart'; // Новый импор
 import '../widgets/edit_task_form.dart';
 import '../widgets/task_filter_chip.dart';
 import '../widgets/search_bar.dart'; // Новый импорт
+import '../../domain/task_types.dart'; // Добавляем импорт типов
 
-class TasksScreen extends ConsumerWidget {
+class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TasksScreen> createState() => _TasksScreenState();
+}
+
+class _TasksScreenState extends ConsumerState<TasksScreen> {
+  @override
+  Widget build(BuildContext context) {
     final tasks = ref.watch(processedTasksProvider);
     final currentFilter = ref.watch(taskFilterProvider);
     final searchQuery = ref.watch(searchQueryProvider);
-    final taskCount = ref.watch(simpleTaskControllerProvider).length;
+    final taskCount = ref.watch(taskControllerProvider).length;
     final sortConfig = ref.watch(taskSortProvider);
 
     return Scaffold(
@@ -81,6 +87,35 @@ class TasksScreen extends ConsumerWidget {
                 );
               }).toList();
             },
+          ),
+          // Кнопка обновления задач
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () async {
+              try {
+                await ref.read(taskControllerProvider.notifier).syncTasks();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Tasks synced successfully!'),
+                      duration: Duration(seconds: 2),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Sync failed: $e'),
+                      duration: const Duration(seconds: 3),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            tooltip: 'Refresh tasks',
           ),
           // Показываем иконку очистки выполненных задач
           if (currentFilter == TaskFilter.completed)
@@ -211,16 +246,13 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
-  // Удаляем старый метод _getSortIcon, так как теперь иконки в enum
-
-  // Остальные методы без изменений...
   Widget _buildBody(List<Task> tasks, WidgetRef ref, BuildContext context, TaskFilter currentFilter, String searchQuery) {
     if (tasks.isEmpty) {
       return _buildEmptyState(currentFilter, searchQuery);
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 80), // Отступ для FAB
+      padding: const EdgeInsets.only(bottom: 80),
       itemCount: tasks.length,
       itemBuilder: (context, index) {
         final task = tasks[index];
@@ -284,7 +316,7 @@ class TasksScreen extends ConsumerWidget {
     );
   }
 
-  // Остальные методы остаются без изменений...
+  // ... остальные методы без изменений
   Widget _buildTaskTile(Task task, WidgetRef ref, BuildContext context) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -292,7 +324,7 @@ class TasksScreen extends ConsumerWidget {
         leading: Checkbox(
           value: task.isCompleted,
           onChanged: (value) {
-            ref.read(simpleTaskControllerProvider.notifier).toggleTaskCompletion(task.id);
+            ref.read(taskControllerProvider.notifier).toggleTaskCompletion(task.id);
           },
         ),
         title: Text(
@@ -339,28 +371,6 @@ class TasksScreen extends ConsumerWidget {
                   backgroundColor: task.isCompleted ? Colors.grey[200] : null,
                 )).toList(),
               ),
-            if (task.deadline != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: [
-                    Icon(
-                        Icons.access_time,
-                        size: 12,
-                        color: task.isCompleted ? Colors.grey : Colors.grey[600]
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Due: ${_formatDate(task.deadline!)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: task.isCompleted ? Colors.grey : Colors.grey[600],
-                        fontStyle: task.isCompleted ? FontStyle.italic : FontStyle.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
         trailing: _buildPriorityIndicator(task.priority),
@@ -373,8 +383,6 @@ class TasksScreen extends ConsumerWidget {
       ),
     );
   }
-
-  // ... остальные методы без изменений
   Widget _buildPriorityIndicator(TaskPriority priority) {
     final (color, label) = switch (priority) {
       TaskPriority.low => (Colors.green, 'Low'),
@@ -426,7 +434,7 @@ class TasksScreen extends ConsumerWidget {
   }
 
   void _showClearCompletedDialog(BuildContext context, WidgetRef ref) {
-    final completedTasks = ref.read(simpleTaskControllerProvider)
+    final completedTasks = ref.read(taskControllerProvider)
         .where((task) => task.isCompleted)
         .toList();
 
@@ -445,7 +453,7 @@ class TasksScreen extends ConsumerWidget {
           TextButton(
             onPressed: () {
               for (final task in completedTasks) {
-                ref.read(simpleTaskControllerProvider.notifier).deleteTask(task.id);
+                ref.read(taskControllerProvider.notifier).deleteTask(task.id);
               }
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
@@ -490,7 +498,7 @@ class TasksScreen extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () {
-              ref.read(simpleTaskControllerProvider.notifier).deleteTask(task.id);
+              ref.read(taskControllerProvider.notifier).deleteTask(task.id);
               Navigator.of(context).pop();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -556,6 +564,7 @@ class _AddTaskFormState extends ConsumerState<AddTaskForm> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   TaskPriority _selectedPriority = TaskPriority.medium;
+  bool _isSubmitting = false; // Флаг для предотвращения двойного нажатия
 
   @override
   void dispose() {
@@ -625,10 +634,19 @@ class _AddTaskFormState extends ConsumerState<AddTaskForm> {
               const SizedBox(width: 16),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _titleController.text.trim().isEmpty
+                  onPressed: (_titleController.text.trim().isEmpty || _isSubmitting)
                       ? null
                       : _addTask,
-                  child: const Text('Add Task'),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text('Add Task'),
                 ),
               ),
             ],
@@ -647,32 +665,47 @@ class _AddTaskFormState extends ConsumerState<AddTaskForm> {
     };
   }
 
-  void _addTask() {
-    if (_titleController.text.trim().isEmpty) return;
+  Future<void> _addTask() async {
+    if (_titleController.text.trim().isEmpty || _isSubmitting) return;
 
-    final newTask = Task(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: _titleController.text.trim(),
-      description: _descriptionController.text.trim().isEmpty
-          ? null
-          : _descriptionController.text.trim(),
-      priority: _selectedPriority,
-      deadline: null,
-      tags: [],
-      isCompleted: false,
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      userId: 'demo-user',
-    );
+    setState(() {
+      _isSubmitting = true;
+    });
 
-    ref.read(simpleTaskControllerProvider.notifier).addTask(newTask);
-    widget.onAddTask();
+    try {
+      await ref.read(taskControllerProvider.notifier).addTask(
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+        priority: _selectedPriority,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Task added successfully!'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+      if (mounted) {
+        widget.onAddTask();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Task added successfully!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error adding task: $e'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
   }
 }

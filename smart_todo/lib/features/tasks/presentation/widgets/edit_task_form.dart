@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../domain/entities/task.dart';
-import '../../application/simple_task_controller.dart';
+import '../../application/task_controller_simple.dart';
 
 class EditTaskForm extends ConsumerStatefulWidget {
   final Task task;
@@ -146,7 +146,7 @@ class _EditTaskFormState extends ConsumerState<EditTaskForm> {
       updatedAt: DateTime.now(),
     );
 
-    ref.read(simpleTaskControllerProvider.notifier).updateTask(updatedTask);
+    ref.read(taskControllerProvider.notifier).updateTask(updatedTask);
     widget.onSave();
 
     ScaffoldMessenger.of(context).showSnackBar(

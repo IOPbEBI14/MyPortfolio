@@ -29,17 +29,17 @@ class Task extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        title,
-        description,
-        priority,
-        deadline,
-        tags,
-        isCompleted,
-        createdAt,
-        updatedAt,
-        userId,
-      ];
+    id,
+    title,
+    description,
+    priority,
+    deadline,
+    tags,
+    isCompleted,
+    createdAt,
+    updatedAt,
+    userId,
+  ];
 
   Task copyWith({
     String? id,
@@ -62,24 +62,50 @@ class Task extends Equatable {
       tags: tags ?? this.tags,
       isCompleted: isCompleted ?? this.isCompleted,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? DateTime.now(),
+      updatedAt: updatedAt ?? DateTime.now(), // Всегда обновляем при изменениях
       userId: userId ?? this.userId,
     );
   }
 
-  // Конвертация Task <-> TaskModel
-  factory Task.fromModel(dynamic model) {
+  // Конвертация в Map для Firestore
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': title,
+      'description': description,
+      'priority': priority.name,
+      'deadline': deadline?.millisecondsSinceEpoch,
+      'tags': tags,
+      'isCompleted': isCompleted,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'userId': userId,
+    };
+  }
+
+  // Создание из Map из Firestore
+  factory Task.fromFirestore(String id, Map<String, dynamic> data) {
     return Task(
-      id: model.id,
-      title: model.title,
-      description: model.description,
-      priority: model.priority,
-      deadline: model.deadline,
-      tags: model.tags,
-      isCompleted: model.isCompleted,
-      createdAt: model.createdAt,
-      updatedAt: model.updatedAt,
-      userId: model.userId,
+      id: id,
+      title: data['title'] as String,
+      description: data['description'] as String?,
+      priority: TaskPriority.values.firstWhere(
+            (e) => e.name == data['priority'],
+        orElse: () => TaskPriority.medium,
+      ),
+      deadline: data['deadline'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(data['deadline'] as int)
+          : null,
+      tags: (data['tags'] as List<dynamic>).cast<String>(),
+      isCompleted: data['isCompleted'] as bool,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(data['createdAt'] as int),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(data['updatedAt'] as int),
+      userId: data['userId'] as String,
     );
+  }
+
+  // Для отладки
+  @override
+  String toString() {
+    return 'Task(id: $id, title: $title, completed: $isCompleted, userId: $userId)';
   }
 }
