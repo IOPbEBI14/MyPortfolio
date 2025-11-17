@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/repository_providers.dart';
+import '../../core/providers/notification_provider.dart';
+import '../../core/services/notification_service.dart';
 import '../../domain/entities/task.dart';
 import '../../domain/repositories/task_repository.dart';
 
@@ -7,20 +9,24 @@ import '../../domain/repositories/task_repository.dart';
 final syncTaskRepositoryProvider = Provider<TaskRepository>((ref) {
   final localRepo = ref.read(localTaskRepositoryProvider);
   final remoteRepo = ref.read(firebaseTaskRepositoryProvider);
+  final notificationService = ref.read(notificationServiceProvider);
 
   return SyncTaskRepository(
     local: localRepo,
     remote: remoteRepo,
+    notificationService: notificationService,
   );
 });
 
 class SyncTaskRepository implements TaskRepository {
   final TaskRepository local;
   final TaskRepository remote;
+  final NotificationService notificationService;
 
   SyncTaskRepository({
     required this.local,
     required this.remote,
+    required this.notificationService,
   });
 
   @override
@@ -71,6 +77,11 @@ class SyncTaskRepository implements TaskRepository {
       print('❌ Failed to sync task to Firebase: $e');
       // Задача останется в локальной БД для последующей синхронизации
     }
+
+    // Планируем уведомления, если есть дедлайн
+    if (task.deadline != null && !task.isCompleted) {
+      await notificationService.scheduleDeadlineNotification(task);
+    }
   }
 
   @override
@@ -85,10 +96,22 @@ class SyncTaskRepository implements TaskRepository {
     } catch (e) {
       print('❌ Failed to sync task update to Firebase: $e');
     }
+
+    // Обновляем уведомления
+    if (task.deadline != null && !task.isCompleted) {
+      // Если есть дедлайн и задача не завершена - планируем уведомления
+      await notificationService.scheduleDeadlineNotification(task);
+    } else {
+      // Если дедлайн удален или задача завершена - отменяем уведомления
+      await notificationService.cancelTaskNotifications(task.id);
+    }
   }
 
   @override
   Future<void> deleteTask(String taskId) async {
+    // Отменяем уведомления для удаляемой задачи
+    await notificationService.cancelTaskNotifications(taskId);
+
     // Сначала удаляем локально
     await local.deleteTask(taskId);
 

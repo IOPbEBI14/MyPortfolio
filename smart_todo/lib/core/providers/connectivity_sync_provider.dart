@@ -18,8 +18,9 @@ class ConnectivitySync {
 
   void _initConnectivityListener() {
     // Слушаем изменения подключения
-    Connectivity().onConnectivityChanged.listen((ConnectivityResult result) async {
-      final isNowOnline = result != ConnectivityResult.none;
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) async {
+      // Проверяем, есть ли хотя бы одно активное подключение
+      final isNowOnline = results.any((result) => result != ConnectivityResult.none);
       
       // Если было оффлайн, а теперь онлайн - синхронизируем
       if (_wasOffline && isNowOnline) {

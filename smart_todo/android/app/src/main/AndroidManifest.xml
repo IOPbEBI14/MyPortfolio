@@ -2,7 +2,11 @@
     <!-- Разрешение на доступ к интернету -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    
+    <!-- Разрешение на отправку уведомлений -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Разрешение на планирование точных алармов -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+
     <application
         android:label="smart_todo"
         android:name="${applicationName}"

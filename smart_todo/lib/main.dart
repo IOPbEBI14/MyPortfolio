@@ -8,6 +8,7 @@ import 'package:smart_todo/core/providers/repository_providers.dart';
 import 'package:smart_todo/core/providers/auth_providers.dart';
 import 'package:smart_todo/core/providers/connectivity_sync_provider.dart';
 import 'package:smart_todo/core/providers/theme_provider.dart';
+import 'package:smart_todo/core/providers/notification_provider.dart';
 import 'package:smart_todo/core/theme/app_theme.dart';
 import 'package:smart_todo/features/auth/presentation/screens/login_screen.dart';
 import 'package:smart_todo/features/auth/presentation/screens/register_screen.dart';
@@ -66,6 +67,10 @@ class MyApp extends ConsumerWidget {
     
     // Инициализируем connectivity sync для автоматической синхронизации
     ref.watch(connectivitySyncProvider);
+    
+    // Инициализируем сервис уведомлений
+    final notificationService = ref.watch(notificationServiceProvider);
+    notificationService.initialize();
 
     return MaterialApp(
       title: 'Smart Todo',
